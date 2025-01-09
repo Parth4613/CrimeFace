@@ -238,7 +238,7 @@ public class MainActivity extends AppCompatActivity {
                 // Calculate cosine similarity between captured and stored feature vectors
                 float similarity = calculateCosineSimilarity(capturedVector, storedVector);
 
-                if (similarity > 0.75) {
+                if (similarity > 0.7) {
                     // Update the TextViews with the matched details
                     nameTextView.setText("Name: " + name);
                     firTextView.setText("FIR: " + firNo);
