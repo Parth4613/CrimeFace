@@ -34,6 +34,8 @@ public class MainActivity extends AppCompatActivity {
     private Bitmap capturedBitmap;
     private Interpreter tflite;
     private DatabaseHelper dbHelper;
+    private ImageView imageViewPerson;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -46,6 +48,8 @@ public class MainActivity extends AppCompatActivity {
         // Initialize buttons
         addFaceButton = findViewById(R.id.addFaceButton);
         recognizeButton = findViewById(R.id.recognizeButton);
+        imageViewPerson = findViewById(R.id.imageViewPerson);
+
 
         // Initialize TensorFlow Lite model
         try {
@@ -100,6 +104,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -109,6 +114,9 @@ public class MainActivity extends AppCompatActivity {
                 capturedBitmap = (Bitmap) extras.get("data");
 
                 if (capturedBitmap != null) {
+                    // Update ImageView with the captured image
+                    imageViewPerson.setImageBitmap(capturedBitmap);
+
                     // Resize image for face recognition model
                     Bitmap resizedBitmap = Bitmap.createScaledBitmap(capturedBitmap, 112, 112, true);
 
@@ -118,8 +126,8 @@ public class MainActivity extends AppCompatActivity {
                         // Prompt user for face details after capturing the image
                         promptForFaceData(featureVector);
                     } else if (requestCode == REQUEST_RECOGNIZE_FACE) {
-                        // Recognize the face from captured image
-                        recognizeFace(  );
+                        // Recognize the face from the captured image
+                        recognizeFace();
                     }
                 } else {
                     Toast.makeText(this, "Failed to capture image", Toast.LENGTH_SHORT).show();
@@ -129,6 +137,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
+
 
     // Extract feature vector using TensorFlow Lite model
     private float[] extractFeatureVector(Bitmap bitmap) {
@@ -238,7 +247,7 @@ public class MainActivity extends AppCompatActivity {
                 // Calculate cosine similarity between captured and stored feature vectors
                 float similarity = calculateCosineSimilarity(capturedVector, storedVector);
 
-                if (similarity > 0.7) {
+                if (similarity > 0.65) {
                     // Update the TextViews with the matched details
                     nameTextView.setText("Name: " + name);
                     firTextView.setText("FIR: " + firNo);
