@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+
+    <!-- Add Face Button -->
+    <Button
+        android:id="@+id/addFaceButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Add Face"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="50dp" />
+
+    <!-- Recognize Face Button -->
+    <Button
+        android:id="@+id/recognizeButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Recognize Face"
+        android:layout_centerHorizontal="true"
+        android:layout_below="@id/addFaceButton"
+        android:layout_marginTop="30dp" />
+
+    <!-- Camera View (Upper Half) -->
+    <ImageView
+        android:id="@+id/cameraView"
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        android:layout_below="@id/recognizeButton"
+        android:layout_marginTop="30dp"
+        android:visibility="gone" />
+
+    <!-- ImageView to Display Captured Image -->
+    <ImageView
+        android:id="@+id/capturedImageView"
+        android:layout_width="200dp"
+        android:layout_height="200dp"
+        android:layout_centerHorizontal="true"
+        android:layout_below="@id/cameraView"
+        android:layout_marginTop="20dp"
+        android:src="@drawable/baseline_person_24" />
+
+    <!-- Bottom Layout to show result -->
+    <LinearLayout
+        android:id="@+id/bottomLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/capturedImageView"
+        android:orientation="vertical"
+        android:layout_marginTop="20dp">
+
+        <!-- Match Result Label -->
+        <TextView
+            android:id="@+id/matchResultLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Match Result:"
+            android:textSize="18sp"
+            android:layout_marginTop="20dp"
+            android:layout_marginStart="16dp" />
+
+        <!-- Matched Name -->
+        <TextView
+            android:id="@+id/matchedName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Name: -"
+            android:textSize="16sp"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="8dp" />
+
+        <!-- Matched FIR -->
+        <TextView
+            android:id="@+id/matchedFIR"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="FIR: -"
+            android:textSize="16sp"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="8dp" />
+
+        <!-- Matched Case Description -->
+        <TextView
+            android:id="@+id/matchedCaseDescription"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Case Description: -"
+            android:textSize="16sp"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="8dp" />
+    </LinearLayout>
+
+</RelativeLayout>
