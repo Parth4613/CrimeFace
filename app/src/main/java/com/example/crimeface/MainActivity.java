@@ -1,30 +1,36 @@
 package com.example.crimeface;
 
-import android.content.ContentValues;
 import android.content.Intent;
-import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.os.Bundle;
+import android.util.Base64;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import android.content.pm.PackageManager;
-import android.widget.ImageView;
 import android.provider.MediaStore;
+
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
+
 import org.tensorflow.lite.Interpreter;
 
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -33,23 +39,27 @@ public class MainActivity extends AppCompatActivity {
     private Button addFaceButton, recognizeButton;
     private Bitmap capturedBitmap;
     private Interpreter tflite;
-    private DatabaseHelper dbHelper;
     private ImageView imageViewPerson;
 
+    // Firebase reference
+    private DatabaseReference firebaseDatabaseReference;
+
+    // To keep track of images
+    private int imageCaptureStep = 0; // 0: Front, 1: Left, 2: Right, 3: Eyes Closed
+    private float[] featureVectorFront, featureVectorLeft, featureVectorRight, featureVectorEyesClosed;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Initialize DatabaseHelper
-        dbHelper = new DatabaseHelper(this);
+        // Initialize Firebase
+        firebaseDatabaseReference = FirebaseDatabase.getInstance().getReference("faceData");
 
         // Initialize buttons
         addFaceButton = findViewById(R.id.addFaceButton);
         recognizeButton = findViewById(R.id.recognizeButton);
         imageViewPerson = findViewById(R.id.imageViewPerson);
-
 
         // Initialize TensorFlow Lite model
         try {
@@ -59,11 +69,35 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "Error loading model", Toast.LENGTH_SHORT).show();
         }
 
-        // Add Face Button: Open the camera to capture image and then enter details
-        addFaceButton.setOnClickListener(v -> captureFaceImage());
+        // Add Face Button: Open the camera to capture multiple images and then enter details
+        addFaceButton.setOnClickListener(v -> startImageCaptureProcess());
 
         // Recognize Button: Open the camera to capture the image for face recognition
         recognizeButton.setOnClickListener(v -> captureFaceForRecognition());
+    }
+
+    // Start the image capture process for 4 types of images
+    private void startImageCaptureProcess() {
+        imageCaptureStep = 0;
+        promptForImageCapture();
+    }
+
+    private void promptForImageCapture() {
+        String message = switch (imageCaptureStep) {
+            case 0 -> "Please capture the front face.";
+            case 1 -> "Please capture the left face.";
+            case 2 -> "Please capture the right face.";
+            case 3 -> "Please capture the front face with eyes closed.";
+            default -> null;
+        };
+
+        if (message != null) {
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+            captureFaceImage();
+        } else {
+            Toast.makeText(this, "Image capture complete. Please provide details.", Toast.LENGTH_SHORT).show();
+            promptForFaceData();
+        }
     }
 
     // Load the model file from assets
@@ -103,37 +137,42 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
-
-
+    
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if ((requestCode == REQUEST_IMAGE_CAPTURE || requestCode == REQUEST_RECOGNIZE_FACE) && resultCode == RESULT_OK) {
-            if (data != null && data.getExtras() != null) {
-                Bundle extras = data.getExtras();
-                capturedBitmap = (Bitmap) extras.get("data");
+        if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK && data != null && data.getExtras() != null) {
+            Bundle extras = data.getExtras();
+            capturedBitmap = (Bitmap) extras.get("data");
 
-                if (capturedBitmap != null) {
-                    // Update ImageView with the captured image
-                    imageViewPerson.setImageBitmap(capturedBitmap);
+            if (capturedBitmap != null) {
+                imageViewPerson.setImageBitmap(capturedBitmap); // Update the ImageView with the captured image
+                Bitmap resizedBitmap = Bitmap.createScaledBitmap(capturedBitmap, 112, 112, true);
 
-                    // Resize image for face recognition model
-                    Bitmap resizedBitmap = Bitmap.createScaledBitmap(capturedBitmap, 112, 112, true);
+                float[] featureVector = extractFeatureVector(resizedBitmap);
 
-                    if (requestCode == REQUEST_IMAGE_CAPTURE) {
-                        // Extract feature vector from the captured image using TFLite model
-                        float[] featureVector = extractFeatureVector(resizedBitmap);
-                        // Prompt user for face details after capturing the image
-                        promptForFaceData(featureVector);
-                    } else if (requestCode == REQUEST_RECOGNIZE_FACE) {
-                        // Recognize the face from the captured image
-                        recognizeFace();
-                    }
-                } else {
-                    Toast.makeText(this, "Failed to capture image", Toast.LENGTH_SHORT).show();
+                switch (imageCaptureStep) {
+                    case 0 -> featureVectorFront = featureVector;
+                    case 1 -> featureVectorLeft = featureVector;
+                    case 2 -> featureVectorRight = featureVector;
+                    case 3 -> featureVectorEyesClosed = featureVector;
                 }
+
+                imageCaptureStep++;
+                promptForImageCapture();
             } else {
-                Toast.makeText(this, "No data returned from camera", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Failed to capture image", Toast.LENGTH_SHORT).show();
+            }
+        } else if (requestCode == REQUEST_RECOGNIZE_FACE && resultCode == RESULT_OK && data != null && data.getExtras() != null) {
+            Bundle extras = data.getExtras();
+            capturedBitmap = (Bitmap) extras.get("data");
+
+            if (capturedBitmap != null) {
+                imageViewPerson.setImageBitmap(capturedBitmap); // Ensure the ImageView is updated here too
+                Bitmap resizedBitmap = Bitmap.createScaledBitmap(capturedBitmap, 112, 112, true);
+                recognizeFace(resizedBitmap);
+            } else {
+                Toast.makeText(this, "Failed to capture image", Toast.LENGTH_SHORT).show();
             }
         }
     }
@@ -141,11 +180,9 @@ public class MainActivity extends AppCompatActivity {
 
     // Extract feature vector using TensorFlow Lite model
     private float[] extractFeatureVector(Bitmap bitmap) {
-        // Prepare input buffer
         ByteBuffer inputBuffer = ByteBuffer.allocateDirect(4 * 112 * 112 * 3);
         inputBuffer.order(ByteOrder.nativeOrder());
 
-        // Convert bitmap to float buffer (normalized RGB)
         int[] intValues = new int[112 * 112];
         bitmap.getPixels(intValues, 0, 112, 0, 0, 112, 112);
         for (int i = 0; i < intValues.length; i++) {
@@ -155,17 +192,100 @@ public class MainActivity extends AppCompatActivity {
             inputBuffer.putFloat((val & 0xFF) / 255.0f);          // Blue
         }
 
-        // Prepare output buffer
-        float[][] output = new float[1][192];  // The feature vector size for the model
-
-        // Run inference
+        float[][] output = new float[1][192];
         tflite.run(inputBuffer, output);
 
         return output[0];
     }
 
-    // Prompt the user for face details after capturing the image
-    private void promptForFaceData(float[] featureVector) {
+    // Recognize face using Firebase
+    private void recognizeFace(Bitmap resizedBitmap) {
+        float[] capturedVector = extractFeatureVector(resizedBitmap);
+
+        // Firebase recognition
+        firebaseDatabaseReference.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot snapshot) {
+                List<FaceData> faceDataList = new ArrayList<>();
+                for (DataSnapshot dataSnapshot : snapshot.getChildren()) {
+                    FaceData faceData = dataSnapshot.getValue(FaceData.class);
+                    if (faceData != null && faceData.FeatureVector != null) {
+                        faceDataList.add(faceData);
+                    }
+                }
+
+                findMatchingFace(capturedVector, faceDataList);
+            }
+
+            @Override
+            public void onCancelled(DatabaseError error) {
+                Toast.makeText(MainActivity.this, "Error fetching data from Firebase: " + error.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    // Find matching face
+    private void findMatchingFace(float[] capturedVector, List<FaceData> faceDataList) {
+        TextView nameTextView = findViewById(R.id.matchedName);
+        TextView firTextView = findViewById(R.id.matchedFIR);
+        TextView caseDescriptionTextView = findViewById(R.id.matchedCaseDescription);
+
+        FaceData bestMatch = null;
+        float bestSimilarity = 0f;
+
+        for (FaceData faceData : faceDataList) {
+            float[] vectors[] = new float[][]{
+                    decodeFeatureVectorFromBase64(faceData.FeatureVector),
+                    decodeFeatureVectorFromBase64(faceData.FeatureVectorL),
+                    decodeFeatureVectorFromBase64(faceData.FeatureVectorR),
+                    decodeFeatureVectorFromBase64(faceData.FeatureVectorEC)
+            };
+            for (float[] storedVector : vectors) {
+                float similarity = calculateCosineSimilarity(capturedVector, storedVector);
+                if (similarity > bestSimilarity && similarity > 0.65) {
+                    bestSimilarity = similarity;
+                    bestMatch = faceData;
+                }
+            }
+        }
+
+        if (bestMatch != null) {
+            nameTextView.setText("Name: " + bestMatch.Name);
+            firTextView.setText("FIR: " + bestMatch.FIRNo);
+            caseDescriptionTextView.setText("Case Description: " + bestMatch.CaseDescription);
+        } else {
+            nameTextView.setText("Name: -");
+            firTextView.setText("FIR: -");
+            caseDescriptionTextView.setText("Case Description: No match found");
+        }
+    }
+
+    // Decode Base64 feature vector
+    private float[] decodeFeatureVectorFromBase64(String base64String) {
+        if (base64String == null || base64String.isEmpty()) return null;
+
+        byte[] bytes = Base64.decode(base64String, Base64.DEFAULT);
+        FloatBuffer buffer = ByteBuffer.wrap(bytes).asFloatBuffer();
+        float[] vector = new float[buffer.remaining()];
+        buffer.get(vector);
+        return vector;
+    }
+
+    // Calculate cosine similarity between two feature vectors
+    private float calculateCosineSimilarity(float[] a, float[] b) {
+        if (a == null || b == null) return 0f;
+
+        float dot = 0f, normA = 0f, normB = 0f;
+        for (int i = 0; i < a.length; i++) {
+            dot += a[i] * b[i];
+            normA += a[i] * a[i];
+            normB += b[i] * b[i];
+        }
+        return dot / ((float) Math.sqrt(normA) * (float) Math.sqrt(normB));
+    }
+
+    // Prompt for adding details after capturing all images
+    private void promptForFaceData() {
         View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_add_face, null);
         EditText nameInput = dialogView.findViewById(R.id.nameInput);
         EditText firInput = dialogView.findViewById(R.id.firInput);
@@ -180,8 +300,8 @@ public class MainActivity extends AppCompatActivity {
                     String caseDescription = caseDescriptionInput.getText().toString().trim();
 
                     if (!name.isEmpty() && !firNo.isEmpty() && !caseDescription.isEmpty()) {
-                        saveFaceData(name, firNo, caseDescription, featureVector);
-                        Toast.makeText(this, "Face added successfully!", Toast.LENGTH_SHORT).show();
+                        saveFaceDataToFirebase(name, firNo, caseDescription);
+                        Toast.makeText(this, "Face data saved successfully!", Toast.LENGTH_SHORT).show();
                     } else {
                         Toast.makeText(this, "All fields are required!", Toast.LENGTH_SHORT).show();
                     }
@@ -192,103 +312,26 @@ public class MainActivity extends AppCompatActivity {
         dialog.show();
     }
 
-    // Save face data to the database
-    private void saveFaceData(String name, String firNo, String caseDescription, float[] featureVector) {
-        SQLiteDatabase database = dbHelper.getWritableDatabase();
+    // Save face data to Firebase
+    private void saveFaceDataToFirebase(String name, String firNo, String caseDescription) {
+        String base64FeatureVectorFront = encodeFeatureVectorToBase64(featureVectorFront);
+        String base64FeatureVectorLeft = encodeFeatureVectorToBase64(featureVectorLeft);
+        String base64FeatureVectorRight = encodeFeatureVectorToBase64(featureVectorRight);
+        String base64FeatureVectorEyesClosed = encodeFeatureVectorToBase64(featureVectorEyesClosed);
 
-        ContentValues values = new ContentValues();
-        values.put(DatabaseHelper.COLUMN_NAME, name);
-        values.put(DatabaseHelper.COLUMN_FIR, firNo);
-        values.put(DatabaseHelper.COLUMN_CASE_DESCRIPTION, caseDescription);
-        values.put(DatabaseHelper.COLUMN_FEATURE_VECTOR, convertFeatureVectorToByteArray(featureVector));
+        FaceData faceData = new FaceData(name, firNo, caseDescription, base64FeatureVectorFront, base64FeatureVectorLeft, base64FeatureVectorRight, base64FeatureVectorEyesClosed);
 
-        long id = database.insert(DatabaseHelper.TABLE_NAME, null, values);
-        if (id != -1) {
-            Toast.makeText(this, "Face data saved successfully", Toast.LENGTH_SHORT).show();
-        } else {
-            Toast.makeText(this, "Error saving face data", Toast.LENGTH_SHORT).show();
-        }
-        database.close();
+        firebaseDatabaseReference.push().setValue(faceData)
+                .addOnSuccessListener(aVoid -> Toast.makeText(this, "Face data saved to Firebase", Toast.LENGTH_SHORT).show())
+                .addOnFailureListener(e -> Toast.makeText(this, "Error saving face data", Toast.LENGTH_SHORT).show());
     }
 
-    private byte[] convertFeatureVectorToByteArray(float[] featureVector) {
+    // Encode feature vector to Base64
+    private String encodeFeatureVectorToBase64(float[] featureVector) {
         ByteBuffer buffer = ByteBuffer.allocate(featureVector.length * 4);
         for (float value : featureVector) {
             buffer.putFloat(value);
         }
-        return buffer.array();
-    }
-
-    // Recognize face from captured image
-    private void recognizeFace() {
-        SQLiteDatabase database = dbHelper.getReadableDatabase();
-
-        if (capturedBitmap != null) {
-            // Resize and extract feature vector from the captured image
-            Bitmap resizedBitmap = Bitmap.createScaledBitmap(capturedBitmap, 112, 112, true);
-            float[] capturedVector = extractFeatureVector(resizedBitmap);
-
-            Cursor cursor = database.query(DatabaseHelper.TABLE_NAME, null, null, null, null, null, null);
-            boolean matchFound = false;
-
-            // References to TextViews
-            TextView nameTextView = findViewById(R.id.matchedName);
-            TextView firTextView = findViewById(R.id.matchedFIR);
-            TextView caseDescriptionTextView = findViewById(R.id.matchedCaseDescription);
-
-            while (cursor.moveToNext()) {
-                // Get stored data from the database
-                String name = cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_NAME));
-                String firNo = cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_FIR));
-                String caseDescription = cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_CASE_DESCRIPTION));
-                byte[] featureVectorBlob = cursor.getBlob(cursor.getColumnIndex(DatabaseHelper.COLUMN_FEATURE_VECTOR));
-                float[] storedVector = convertByteArrayToFeatureVector(featureVectorBlob);
-
-                // Calculate cosine similarity between captured and stored feature vectors
-                float similarity = calculateCosineSimilarity(capturedVector, storedVector);
-
-                if (similarity > 0.65) {
-                    // Update the TextViews with the matched details
-                    nameTextView.setText("Name: " + name);
-                    firTextView.setText("FIR: " + firNo);
-                    caseDescriptionTextView.setText("Case Description: " + caseDescription);
-
-                    matchFound = true;
-                    break;
-                }
-            }
-
-            if (!matchFound) {
-                // Clear the TextViews if no match is found
-                nameTextView.setText("Name: -");
-                firTextView.setText("FIR: -");
-                caseDescriptionTextView.setText("Case Description: No match found");
-            }
-
-            cursor.close();
-            database.close();
-        } else {
-            Toast.makeText(this, "No image captured!", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-
-    // Calculate cosine similarity between two feature vectors
-    private float calculateCosineSimilarity(float[] a, float[] b) {
-        float dot = 0f, normA = 0f, normB = 0f;
-        for (int i = 0; i < a.length; i++) {
-            dot += a[i] * b[i];
-            normA += a[i] * a[i];
-            normB += b[i] * b[i];
-        }
-        return dot / ((float) Math.sqrt(normA) * (float) Math.sqrt(normB));
-    }
-
-    // Convert byte array to feature vector
-    private float[] convertByteArrayToFeatureVector(byte[] blob) {
-        FloatBuffer buffer = ByteBuffer.wrap(blob).asFloatBuffer();
-        float[] vector = new float[buffer.remaining()];
-        buffer.get(vector);
-        return vector;
+        return Base64.encodeToString(buffer.array(), Base64.DEFAULT);
     }
 }

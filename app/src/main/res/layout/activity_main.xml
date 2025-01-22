@@ -2,6 +2,7 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@drawable/futuristic_background"
     android:padding="16dp">
 
     <!-- Add Face Button -->
@@ -10,8 +11,12 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Add Face"
+        android:textColor="#FFFFFF"
+        android:background="@drawable/neon_button"
+        android:textStyle="bold"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="50dp" />
+        android:layout_marginTop="50dp"
+        android:elevation="10dp" />
 
     <!-- Recognize Face Button -->
     <Button
@@ -19,39 +24,37 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Recognize Face"
+        android:textColor="#FFFFFF"
+        android:background="@drawable/neon_button"
+        android:textStyle="bold"
         android:layout_centerHorizontal="true"
         android:layout_below="@id/addFaceButton"
-        android:layout_marginTop="30dp" />
-
-    <!-- Camera View (Upper Half) -->
-    <ImageView
-        android:id="@+id/cameraView"
-        android:layout_width="match_parent"
-        android:layout_height="200dp"
-        android:layout_below="@id/recognizeButton"
         android:layout_marginTop="30dp"
-        android:visibility="gone" />
+        android:elevation="10dp" />
 
     <!-- ImageView to Display Captured Image -->
     <ImageView
         android:id="@+id/imageViewPerson"
         android:layout_width="300dp"
         android:layout_height="300dp"
-        android:layout_below="@id/cameraView"
         android:layout_centerHorizontal="true"
-        android:layout_gravity="center"
-        android:layout_marginTop="20dp"
-        android:src="@drawable/baseline_person_24" />
+        android:layout_marginTop="30dp"
+        android:layout_below="@id/recognizeButton"
+        android:src="@drawable/person_placeholder"
+        android:background="@drawable/neon_border"
+        android:scaleType="centerCrop" />
 
-
-    <!-- Bottom Layout to show result -->
+    <!-- Bottom Layout to Show Result -->
     <LinearLayout
         android:id="@+id/bottomLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_below="@id/imageViewPerson"
         android:orientation="vertical"
-        android:layout_marginTop="20dp">
+        android:layout_marginTop="20dp"
+        android:padding="16dp"
+        android:background="@drawable/transparent_card"
+        android:elevation="8dp">
 
         <!-- Match Result Label -->
         <TextView
@@ -60,8 +63,8 @@
             android:layout_height="wrap_content"
             android:text="Match Result:"
             android:textSize="18sp"
-            android:layout_marginTop="20dp"
-            android:layout_marginStart="16dp" />
+            android:textColor="#00FFC6"
+            android:textStyle="bold" />
 
         <!-- Matched Name -->
         <TextView
@@ -70,7 +73,7 @@
             android:layout_height="wrap_content"
             android:text="Name: -"
             android:textSize="16sp"
-            android:layout_marginStart="16dp"
+            android:textColor="#FFFFFF"
             android:layout_marginTop="8dp" />
 
         <!-- Matched FIR -->
@@ -80,7 +83,7 @@
             android:layout_height="wrap_content"
             android:text="FIR: -"
             android:textSize="16sp"
-            android:layout_marginStart="16dp"
+            android:textColor="#FFFFFF"
             android:layout_marginTop="8dp" />
 
         <!-- Matched Case Description -->
@@ -90,7 +93,7 @@
             android:layout_height="wrap_content"
             android:text="Case Description: -"
             android:textSize="16sp"
-            android:layout_marginStart="16dp"
+            android:textColor="#FFFFFF"
             android:layout_marginTop="8dp" />
     </LinearLayout>
 

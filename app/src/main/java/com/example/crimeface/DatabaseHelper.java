@@ -8,7 +8,7 @@ import android.util.Log;
 public class DatabaseHelper extends SQLiteOpenHelper {
 
     // Database constants
-    private static final String DATABASE_NAME = "Criminallog+.db";
+    private static final String DATABASE_NAME = "Criminallog.db";
     private static final int DATABASE_VERSION = 1;
 
     // Table constants
