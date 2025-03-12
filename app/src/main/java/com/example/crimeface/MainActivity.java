@@ -76,29 +76,15 @@ public class MainActivity extends AppCompatActivity {
         recognizeButton.setOnClickListener(v -> captureFaceForRecognition());
     }
 
-    // Start the image capture process for 4 types of images
     private void startImageCaptureProcess() {
-        imageCaptureStep = 0;
         promptForImageCapture();
     }
 
     private void promptForImageCapture() {
-        String message = switch (imageCaptureStep) {
-            case 0 -> "Please capture the front face.";
-            case 1 -> "Please capture the left face.";
-            case 2 -> "Please capture the right face.";
-            case 3 -> "Please capture the front face with eyes closed.";
-            default -> null;
-        };
-
-        if (message != null) {
-            Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
-            captureFaceImage();
-        } else {
-            Toast.makeText(this, "Image capture complete. Please provide details.", Toast.LENGTH_SHORT).show();
-            promptForFaceData();
-        }
+        Toast.makeText(this, "Please capture the front face.", Toast.LENGTH_SHORT).show();
+        captureFaceImage();
     }
+
 
     // Load the model file from assets
     private ByteBuffer loadModelFile() {
@@ -141,6 +127,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+
         if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK && data != null && data.getExtras() != null) {
             Bundle extras = data.getExtras();
             capturedBitmap = (Bitmap) extras.get("data");
@@ -150,16 +137,10 @@ public class MainActivity extends AppCompatActivity {
                 Bitmap resizedBitmap = Bitmap.createScaledBitmap(capturedBitmap, 112, 112, true);
 
                 float[] featureVector = extractFeatureVector(resizedBitmap);
+                featureVectorFront = featureVector; // Store only one feature vector
 
-                switch (imageCaptureStep) {
-                    case 0 -> featureVectorFront = featureVector;
-                    case 1 -> featureVectorLeft = featureVector;
-                    case 2 -> featureVectorRight = featureVector;
-                    case 3 -> featureVectorEyesClosed = featureVector;
-                }
-
-                imageCaptureStep++;
-                promptForImageCapture();
+                Toast.makeText(this, "Image captured successfully!", Toast.LENGTH_SHORT).show();
+                promptForFaceData();
             } else {
                 Toast.makeText(this, "Failed to capture image", Toast.LENGTH_SHORT).show();
             }
@@ -176,6 +157,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
+
 
 
     // Extract feature vector using TensorFlow Lite model
@@ -234,20 +216,15 @@ public class MainActivity extends AppCompatActivity {
         float bestSimilarity = 0f;
 
         for (FaceData faceData : faceDataList) {
-            float[] vectors[] = new float[][]{
-                    decodeFeatureVectorFromBase64(faceData.FeatureVector),
-                    decodeFeatureVectorFromBase64(faceData.FeatureVectorL),
-                    decodeFeatureVectorFromBase64(faceData.FeatureVectorR),
-                    decodeFeatureVectorFromBase64(faceData.FeatureVectorEC)
-            };
-            for (float[] storedVector : vectors) {
-                float similarity = calculateCosineSimilarity(capturedVector, storedVector);
-                if (similarity > bestSimilarity && similarity > 0.65) {
-                    bestSimilarity = similarity;
-                    bestMatch = faceData;
-                }
+            float[] storedVector = decodeFeatureVectorFromBase64(faceData.FeatureVector); // Compare only with front face vector
+
+            float similarity = calculateCosineSimilarity(capturedVector, storedVector);
+            if (similarity > bestSimilarity && similarity > 0.65) {
+                bestSimilarity = similarity;
+                bestMatch = faceData;
             }
         }
+
 
         if (bestMatch != null) {
             nameTextView.setText("Name: " + bestMatch.Name);
@@ -315,11 +292,8 @@ public class MainActivity extends AppCompatActivity {
     // Save face data to Firebase
     private void saveFaceDataToFirebase(String name, String firNo, String caseDescription) {
         String base64FeatureVectorFront = encodeFeatureVectorToBase64(featureVectorFront);
-        String base64FeatureVectorLeft = encodeFeatureVectorToBase64(featureVectorLeft);
-        String base64FeatureVectorRight = encodeFeatureVectorToBase64(featureVectorRight);
-        String base64FeatureVectorEyesClosed = encodeFeatureVectorToBase64(featureVectorEyesClosed);
 
-        FaceData faceData = new FaceData(name, firNo, caseDescription, base64FeatureVectorFront, base64FeatureVectorLeft, base64FeatureVectorRight, base64FeatureVectorEyesClosed);
+        FaceData faceData = new FaceData(name, firNo, caseDescription, base64FeatureVectorFront);
 
         firebaseDatabaseReference.push().setValue(faceData)
                 .addOnSuccessListener(aVoid -> Toast.makeText(this, "Face data saved to Firebase", Toast.LENGTH_SHORT).show())
